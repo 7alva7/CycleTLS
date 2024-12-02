@@ -11,7 +11,7 @@ import (
 
 	http "github.com/Danny-Dasilva/fhttp"
 	http2 "github.com/Danny-Dasilva/fhttp/http2"
-	utls "github.com/Danny-Dasilva/utls"
+	utls "github.com/refraction-networking/utls"
 	"golang.org/x/net/proxy"
 )
 
@@ -23,11 +23,13 @@ type roundTripper struct {
 	JA3       string
 	UserAgent string
 
-	Cookies           []Cookie
-	cachedConnections map[string]net.Conn
-	cachedTransports  map[string]http.RoundTripper
+	InsecureSkipVerify bool
+	Cookies            []Cookie
+	cachedConnections  map[string]net.Conn
+	cachedTransports   map[string]http.RoundTripper
 
-	dialer proxy.ContextDialer
+	dialer     proxy.ContextDialer
+	forceHTTP1 bool
 }
 
 func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -100,12 +102,12 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 	}
 	//////////////////
 
-	spec, err := StringToSpec(rt.JA3, rt.UserAgent)
+	spec, err := StringToSpec(rt.JA3, rt.UserAgent, rt.forceHTTP1)
 	if err != nil {
 		return nil, err
 	}
 
-	conn := utls.UClient(rawConn, &utls.Config{ServerName: host, InsecureSkipVerify: true}, // MinVersion:         tls.VersionTLS10,
+	conn := utls.UClient(rawConn, &utls.Config{ServerName: host, OmitEmptyPsk: true, InsecureSkipVerify: rt.InsecureSkipVerify}, // MinVersion:         tls.VersionTLS10,
 		// MaxVersion:         tls.VersionTLS13,
 
 		utls.HelloCustom)
@@ -124,7 +126,6 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		return nil, fmt.Errorf("uTlsConn.Handshake() error: %+v", err)
 	}
 
-	//////////
 	if rt.cachedTransports[addr] != nil {
 		return conn, nil
 	}
@@ -134,14 +135,16 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 	switch conn.ConnectionState().NegotiatedProtocol {
 	case http2.NextProtoTLS:
 		parsedUserAgent := parseUserAgent(rt.UserAgent)
-		t2 := http2.Transport{DialTLS: rt.dialTLSHTTP2,
+
+		t2 := http2.Transport{
+			DialTLS:     rt.dialTLSHTTP2,
 			PushHandler: &http2.DefaultPushHandler{},
-			Navigator:   parsedUserAgent,
+			Navigator:   parsedUserAgent.UserAgent,
 		}
 		rt.cachedTransports[addr] = &t2
 	default:
 		// Assume the remote peer is speaking HTTP 1.x + TLS.
-		rt.cachedTransports[addr] = &http.Transport{DialTLSContext: rt.dialTLS}
+		rt.cachedTransports[addr] = &http.Transport{DialTLSContext: rt.dialTLS, DisableKeepAlives: true}
 
 	}
 
@@ -171,27 +174,29 @@ func (rt *roundTripper) CloseIdleConnections() {
 	}
 }
 
-func newRoundTripper(browser browser, dialer ...proxy.ContextDialer) http.RoundTripper {
+func newRoundTripper(browser Browser, dialer ...proxy.ContextDialer) http.RoundTripper {
 	if len(dialer) > 0 {
 
 		return &roundTripper{
-			dialer: dialer[0],
-
-			JA3:               browser.JA3,
-			UserAgent:         browser.UserAgent,
-			Cookies:           browser.Cookies,
-			cachedTransports:  make(map[string]http.RoundTripper),
-			cachedConnections: make(map[string]net.Conn),
+			dialer:             dialer[0],
+			JA3:                browser.JA3,
+			UserAgent:          browser.UserAgent,
+			Cookies:            browser.Cookies,
+			cachedTransports:   make(map[string]http.RoundTripper),
+			cachedConnections:  make(map[string]net.Conn),
+			InsecureSkipVerify: browser.InsecureSkipVerify,
+			forceHTTP1:         browser.forceHTTP1,
 		}
 	}
 
 	return &roundTripper{
-		dialer: proxy.Direct,
-
-		JA3:               browser.JA3,
-		UserAgent:         browser.UserAgent,
-		Cookies:           browser.Cookies,
-		cachedTransports:  make(map[string]http.RoundTripper),
-		cachedConnections: make(map[string]net.Conn),
+		dialer:             proxy.Direct,
+		JA3:                browser.JA3,
+		UserAgent:          browser.UserAgent,
+		Cookies:            browser.Cookies,
+		cachedTransports:   make(map[string]http.RoundTripper),
+		cachedConnections:  make(map[string]net.Conn),
+		InsecureSkipVerify: browser.InsecureSkipVerify,
+		forceHTTP1:         browser.forceHTTP1,
 	}
 }

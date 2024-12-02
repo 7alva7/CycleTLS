@@ -1,5 +1,77 @@
 # CycleTLS Changelog
 
+## 1.0.26 - (2-16-2024)
+### Release Highlights
+Fix illegal parameter error and location url error
+
+### Enhancements
+- [Default JA3 and UA](https://github.com/Danny-Dasilva/CycleTLS/issues/322)
+- [Clearer Docs around HTTP1.1 support](https://github.com/Danny-Dasilva/CycleTLS/issues/321)
+### Bug Fixes
+-  [302 Location Url Error](https://github.com/Danny-Dasilva/CycleTLS/issues/323) thanks to @lif0
+- Fix error: remote error: tls: illegal parameter based on incorrect TLS version
+
+
+## 1.0.25 - (1-08-2024)
+### Release Highlights
+Support extension 65037 as well as socks5h and socks4 proxies
+
+### Enhancements
+- Support Socks4
+- [Support Socks5H](https://github.com/Danny-Dasilva/CycleTLS/issues/301)
+### Bug Fixes
+-  [Add support for Extension 65037](https://github.com/Danny-Dasilva/CycleTLS/issues/138)
+
+## 1.0.24 - (11-27-2023)
+### Release Highlights
+Small bugfixes and ReadMe updates
+
+### Enhancements
+- Update docs
+- Add tests for forceHTTP1
+- update to using io instead of ioutil
+### Bug Fixes
+- Fix issue with keepalives on closed connections when http1 is forced
+
+## 1.0.23 - (11-27-2023)
+### Release Highlights
+Switch to UTLS
+Add Insecure Skip Verify for proxy bypass
+Add Force HTTP1
+### Enhancements
+-   [Add forceHTTP1 param to configure http version](https://github.com/Danny-Dasilva/CycleTLS/issues/268)
+-  add InsecureSkipVerify configuration option enabling bypassing the SSL certificate verification when making HTTP requests addressed by @lif0 in [this PR](https://github.com/Danny-Dasilva/CycleTLS/pull/279)
+- [Add finalUrl response to track redirects ](https://github.com/Danny-Dasilva/CycleTLS/issues/121) @lif0 in [this PR](https://github.com/Danny-Dasilva/CycleTLS/pull/283)
+- [Add support for application/x-www-form-urlencoded](https://github.com/Danny-Dasilva/CycleTLS/issues/155)
+- [Add support for multipart/form-data](https://github.com/Danny-Dasilva/CycleTLS/issues/89)
+- [Add CycleTLS Queue Example and test](https://github.com/Danny-Dasilva/CycleTLS/issues/128)
+- [Add CookieJar Support in Golang](https://github.com/Danny-Dasilva/CycleTLS/issues/260), [duplicate](https://github.com/Danny-Dasilva/CycleTLS/issues/146), [other duplicate](https://github.com/Danny-Dasilva/CycleTLS/issues/222)
+- [tag submodule cycletls](https://github.com/Danny-Dasilva/CycleTLS/issues/232)
+- [Export transport for http client](https://github.com/Danny-Dasilva/CycleTLS/issues/151), addressed by @deoxykev in [this PR](https://github.com/Danny-Dasilva/CycleTLS/pull/286)
+- Add support for ja3 `24` FakeTokenBindingExtension
+- Add support for ja3 `34` DelegatedCredentialsExtension
+- Add support for ja3 `41` UtlsPreSharedKeyExtension
+- Add support for ja3 `50` SignatureAlgorithmsCertExtension
+- Add support for ja3 `57` QUICTransportParametersExtension
+
+## 1.0.22 - (10-24-2023)
+### Release Highlights
+Support for additional filetypes and memory leak fix
+Update Golang version to 17 
+[New Discord Community](https://discord.gg/gsmxMHrwhu) 
+
+### Enhancements
+- [Missing Gif/Avif/... support in Decoding ](https://github.com/Danny-Dasilva/CycleTLS/issues/262)
+- [Discord Community](https://github.com/Danny-Dasilva/CycleTLS/issues/206)
+### Bug Fixes
+- [Memory leaks builded package on Docker container](https://github.com/Danny-Dasilva/CycleTLS/issues/157)
+- [There are lot's of memory leaks, DDoS and infinite loop if any error in NodeJS](https://github.com/Danny-Dasilva/CycleTLS/issues/264) 
+  * golang request closing memory leak issue [addressed by](https://github.com/Danny-Dasilva/CycleTLS/pull/265) @abler98 
+  * [npm memory leak issue addressed](https://github.com/Danny-Dasilva/CycleTLS/pull/266/commits/7251f03aa0fec15093ff29e21a5aae4064c1aa0b) by @Stephen-PP
+- [is there a way to support socks5 proxy?](https://github.com/Danny-Dasilva/CycleTLS/issues/263) addressed by @ChengHoward
+- [Support Socks5/4](https://github.com/Danny-Dasilva/CycleTLS/issues/77) addressed by @ChengHoward
+
+
 ## 1.0.21 - (6-20-2022)
 ### Release Highlights
 Json Parse body in response and Cookie examples

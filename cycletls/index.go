@@ -5,7 +5,7 @@ import (
 	"flag"
 	http "github.com/Danny-Dasilva/fhttp"
 	"github.com/gorilla/websocket"
-	"io/ioutil"
+	"io"
 	"log"
 	nhttp "net/http"
 	"net/url"
@@ -16,18 +16,20 @@ import (
 
 // Options sets CycleTLS client options
 type Options struct {
-	URL             string            `json:"url"`
-	Method          string            `json:"method"`
-	Headers         map[string]string `json:"headers"`
-	Body            string            `json:"body"`
-	Ja3             string            `json:"ja3"`
-	UserAgent       string            `json:"userAgent"`
-	Proxy           string            `json:"proxy"`
-	Cookies         []Cookie          `json:"cookies"`
-	Timeout         int               `json:"timeout"`
-	DisableRedirect bool              `json:"disableRedirect"`
-	HeaderOrder     []string          `json:"headerOrder"`
-	OrderAsProvided bool              `json:"orderAsProvided"` //TODO
+	URL                string            `json:"url"`
+	Method             string            `json:"method"`
+	Headers            map[string]string `json:"headers"`
+	Body               string            `json:"body"`
+	Ja3                string            `json:"ja3"`
+	UserAgent          string            `json:"userAgent"`
+	Proxy              string            `json:"proxy"`
+	Cookies            []Cookie          `json:"cookies"`
+	Timeout            int               `json:"timeout"`
+	DisableRedirect    bool              `json:"disableRedirect"`
+	HeaderOrder        []string          `json:"headerOrder"`
+	OrderAsProvided    bool              `json:"orderAsProvided"` //TODO
+	InsecureSkipVerify bool              `json:"insecureSkipVerify"`
+	ForceHTTP1         bool              `json:"forceHTTP1"`
 }
 
 type cycleTLSRequest struct {
@@ -48,6 +50,8 @@ type Response struct {
 	Status    int
 	Body      string
 	Headers   map[string]string
+	Cookies   []*nhttp.Cookie
+	FinalUrl  string
 }
 
 // JSONBody converts response body to json
@@ -68,11 +72,12 @@ type CycleTLS struct {
 
 // ready Request
 func processRequest(request cycleTLSRequest) (result fullRequest) {
-
-	var browser = browser{
-		JA3:       request.Options.Ja3,
-		UserAgent: request.Options.UserAgent,
-		Cookies:   request.Options.Cookies,
+	var browser = Browser{
+		JA3:                request.Options.Ja3,
+		UserAgent:          request.Options.UserAgent,
+		Cookies:            request.Options.Cookies,
+		InsecureSkipVerify: request.Options.InsecureSkipVerify,
+		forceHTTP1:         request.Options.ForceHTTP1,
 	}
 
 	client, err := newClient(
@@ -143,11 +148,12 @@ func processRequest(request cycleTLSRequest) (result fullRequest) {
 		}
 
 	}
+	headerOrder := parseUserAgent(request.Options.UserAgent).HeaderOrder
 
 	//ordering the pseudo headers and our normal headers
 	req.Header = http.Header{
 		http.HeaderOrderKey:  headerorderkey,
-		http.PHeaderOrderKey: {":method", ":authority", ":scheme", ":path"},
+		http.PHeaderOrderKey: headerOrder,
 	}
 	//set our Host header
 	u, err := url.Parse(request.Options.URL)
@@ -169,24 +175,28 @@ func processRequest(request cycleTLSRequest) (result fullRequest) {
 
 func dispatcher(res fullRequest) (response Response, err error) {
 	defer res.client.CloseIdleConnections()
-
+	finalUrl := res.options.Options.URL
 	resp, err := res.client.Do(res.req)
 	if err != nil {
 
 		parsedError := parseError(err)
 
 		headers := make(map[string]string)
-		return Response{res.options.RequestID, parsedError.StatusCode, parsedError.ErrorMsg + "-> \n" + string(err.Error()), headers}, nil //normally return error here
+		var cookies []*nhttp.Cookie
+		return Response{RequestID: res.options.RequestID, Status: parsedError.StatusCode, Body: parsedError.ErrorMsg + "-> \n" + string(err.Error()), Headers: headers, Cookies: cookies, FinalUrl: finalUrl}, nil //normally return error here
 
 	}
 	defer resp.Body.Close()
 
+	if resp != nil && resp.Request != nil && resp.Request.URL != nil {
+		finalUrl = resp.Request.URL.String()
+	}
+
 	encoding := resp.Header["Content-Encoding"]
 	content := resp.Header["Content-Type"]
+	bodyBytes, err := io.ReadAll(resp.Body)
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Print("Parse Bytes" + err.Error())
 		return response, err
 	}
 
@@ -202,7 +212,15 @@ func dispatcher(res fullRequest) (response Response, err error) {
 			}
 		}
 	}
-	return Response{res.options.RequestID, resp.StatusCode, Body, headers}, nil
+	cookies := convertFHTTPCookiesToNetHTTPCookies(resp.Cookies())
+	return Response{
+		RequestID: res.options.RequestID,
+		Status:    resp.StatusCode,
+		Body:      Body,
+		Headers:   headers,
+		Cookies:   cookies,
+		FinalUrl:  finalUrl,
+	}, nil
 
 }
 
@@ -222,19 +240,24 @@ func (client CycleTLS) Do(URL string, options Options, Method string) (response 
 
 	options.URL = URL
 	options.Method = Method
+	 // Set default values if not provided
+	 if options.Ja3 == "" {
+        options.Ja3 = "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,18-35-65281-45-17513-27-65037-16-10-11-5-13-0-43-23-51,29-23-24,0"
+    }
+    if options.UserAgent == "" {
+		// Mac OS Chrome 121
+        options.UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+    }
 	opt := cycleTLSRequest{"cycleTLSRequest", options}
 
 	res := processRequest(opt)
 	response, err = dispatcher(res)
 	if err != nil {
-		log.Print("Request Failed: " + err.Error())
 		return response, err
 	}
 
 	return response, nil
 }
-
-//TODO rename this
 
 // Init starts the worker pool or returns a empty cycletls struct
 func Init(workers ...bool) CycleTLS {
@@ -268,10 +291,7 @@ func workerPool(reqChan chan fullRequest, respChan chan Response) {
 // Worker
 func worker(reqChan chan fullRequest, respChan chan Response) {
 	for res := range reqChan {
-		response, err := dispatcher(res)
-		if err != nil {
-			log.Print("Request Failed: " + err.Error())
-		}
+		response, _ := dispatcher(res)
 		respChan <- response
 	}
 }
@@ -325,6 +345,7 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
+// WSEndpoint exports the main cycletls function as we websocket connection that clients can connect to
 func WSEndpoint(w nhttp.ResponseWriter, r *nhttp.Request) {
 	upgrader.CheckOrigin = func(r *nhttp.Request) bool { return true }
 
@@ -334,7 +355,7 @@ func WSEndpoint(w nhttp.ResponseWriter, r *nhttp.Request) {
 	if err != nil {
 		//Golang Received a non-standard request to this port, printing request
 		var data map[string]interface{}
-		bodyBytes, err := ioutil.ReadAll(r.Body)
+		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
 			log.Print("Invalid Request: Body Read Error" + err.Error())
 		}
