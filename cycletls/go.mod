@@ -1,14 +1,23 @@
 module github.com/Danny-Dasilva/CycleTLS/cycletls
 
-go 1.14
+go 1.21
+
+toolchain go1.21.3
 
 require (
-	github.com/Danny-Dasilva/fhttp v0.0.0-20220524230104-f801520157d6
-	github.com/Danny-Dasilva/utls v0.0.0-20220604023528-30cb107b834e
-	github.com/PuerkitoBio/goquery v1.8.0
-	github.com/andybalholm/brotli v1.0.4
-	github.com/gorilla/websocket v1.5.0
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
-	golang.org/x/net v0.0.0-20220615171555-694bf12d69de
-	golang.org/x/sys v0.0.0-20220615213510-4f61da869c0c // indirect
+	github.com/Danny-Dasilva/fhttp v0.0.0-20240217042913-eeeb0b347ce1
+	github.com/andybalholm/brotli v1.1.0
+	github.com/gorilla/websocket v1.5.1
+	github.com/refraction-networking/utls v1.6.2
+	golang.org/x/net v0.21.0
+	h12.io/socks v1.0.3
+)
+
+require (
+	github.com/cloudflare/circl v1.3.7 // indirect
+	github.com/klauspost/compress v1.17.6 // indirect
+	github.com/quic-go/quic-go v0.41.0 // indirect
+	golang.org/x/crypto v0.19.0 // indirect
+	golang.org/x/sys v0.17.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 )
